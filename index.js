@@ -10,15 +10,12 @@ const port = 8080;
 async function getData() {
     const document = await getEtherscanDocument();
 
-    let dataJson = fs.readFileSync(dataFileName);
-
-    let data = JSON.parse(dataJson);
-    data.push({
-        "timestamp": new Date().toISOString(),
+    data = {
+        "price": getPrice(document),
         "mc": getFullyDilutedMarketCap(document),
         "holders": getHolders(document),
         "totalSupply": getTotalSupply(document)
-    });
+    };
 
     fs.writeFileSync(dataFileName, JSON.stringify(data));
 }
@@ -35,11 +32,11 @@ async function getEtherscanDocument() {
     }
 }
 
-function getFullyDilutedMarketCap(document) {
-    let rawText = document.getElementById("pricebutton").textContent;
+function getPrice(document) {
+    let rawText = document.getElementById("ContentPlaceHolder1_tr_valuepertoken").querySelector("span.d-block").textContent;
 
-    //Check if the raw text is comprised $ in front and then numbers with , in between them then a . and then only numbers
-    const regexCheckRule = /\$([0-9,]*.[0-9])*/gm;
+    //Check if the raw text is comprised $ in front and then numbers with , in between them then a . and then only numbers @ numbers Eth
+    const regexCheckRule = /\$([0-9,]*.[0-9]*)\s*\@\s*[0-9.]*\s*Eth/gm;
     const regexGroups = regexCheckRule.exec(rawText);
 
     if (!regexGroups) {
@@ -47,7 +44,24 @@ function getFullyDilutedMarketCap(document) {
     }
 
     //Return the number part without the $ and ,
-    rawText = regexGroups[1].replace(",", "");
+    rawText = regexGroups[1].replace(/[,]/gm, "");
+
+    return rawText;
+}
+
+function getFullyDilutedMarketCap(document) {
+    let rawText = document.getElementById("pricebutton").textContent;
+
+    //Check if the raw text is comprised $ in front and then numbers with , in between them then a . and then only numbers
+    const regexCheckRule = /\$([0-9,]*.[0-9]*)/gm;
+    const regexGroups = regexCheckRule.exec(rawText);
+
+    if (!regexGroups) {
+        throw `fully diluted market cap value ${rawText} didn't pass regex match!`;
+    }
+
+    //Return the number part without the $ and ,
+    rawText = regexGroups[1].replace(/[,]/gm, "");
 
     return rawText;
 }
@@ -82,14 +96,14 @@ function getTotalSupply(document) {
     }
 
     //Return the entire matched part without ,
-    rawText = regexGroups[0].replace(",", "");
+    rawText = regexGroups[0].replace(/[,]/gm, "");
 
     return rawText;
 }
 
 setInterval(getData, updateIntervalInSeconds * 1000);
 
-const express = require('express')
+const express = require('express');
 const app = express()
 
 app.get('/', function (req, res) {
